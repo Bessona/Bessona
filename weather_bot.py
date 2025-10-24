@@ -2,15 +2,16 @@ import requests
 from bs4 import BeautifulSoup
 import telebot
 import schedule
+import threading
 import time
 
 # === Настройки ===
 TOKEN = "8261592064:AAFLThqLcAnSBdlSWWon1596-X_zByVo9rY"
 CHAT_ID = -1002548699204
-CITY_URL = "https://sinoptik.ua/пogoda-dnepr"  # альтернативная форма URL, если потребуется
 
 bot = telebot.TeleBot(TOKEN)
 
+# === Получение погоды ===
 def get_weather():
     try:
         response = requests.get("https://sinoptik.ua/погода-днепр", timeout=10)
@@ -39,6 +40,7 @@ def get_weather():
     except Exception as e:
         return f"Ошибка при получении погоды: {e}"
 
+# === Отправка погоды ===
 def send_weather():
     try:
         weather = get_weather()
@@ -46,22 +48,25 @@ def send_weather():
     except Exception as e:
         print("Ошибка при отправке сообщения:", e)
 
-# === команда /test ===
+# === Обработчик команды /test ===
 @bot.message_handler(commands=['test'])
 def handle_test(message):
     weather = get_weather()
     bot.send_message(message.chat.id, f"✅ Проверка: бот работает!\n\n{weather}")
 
-# === стартовое уведомление ===
+# === Ежедневное расписание ===
+def schedule_checker():
+    schedule.every().day.at("08:00").do(send_weather)
+    while True:
+        schedule.run_pending()
+        time.sleep(60)
+
+# === Отправляем сообщение при запуске ===
 try:
     bot.send_message(CHAT_ID, "✅ Бот запущен и будет отправлять погоду каждый день в 08:00 (по серверному времени).")
 except Exception as e:
     print("Не удалось отправить стартовое сообщение:", e)
 
-# === расписание ===
-schedule.every().day.at("08:00").do(send_weather)
-
-print("Запущен цикл расписания. Ожидание...")
-while True:
-    schedule.run_pending()
-    time.sleep(60)
+# === Запуск двух потоков: один слушает Telegram, второй выполняет расписание ===
+threading.Thread(target=schedule_checker).start()
+bot.polling(none_stop=True)
