@@ -8,7 +8,20 @@ import time
 # === Настройки ===
 TOKEN = "8261592064:AAFLThqLcAnSBdlSWWon1596-X_zByVo9rY"
 CHAT_ID = -1002548699204
+from flask import Flask
+import os
 
+app = Flask(__name__)
+
+@app.route('/')
+def home():
+    return "Bot is running"
+
+import threading
+def run_flask():
+    port = int(os.environ.get("PORT", 10000))
+    app.run(host="0.0.0.0", port=port)
+threading.Thread(target=run_flask).start()
 bot = telebot.TeleBot(TOKEN)
 
 # === Получение погоды ===
