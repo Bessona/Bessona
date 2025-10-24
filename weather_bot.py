@@ -1,85 +1,68 @@
-import requests
-from bs4 import BeautifulSoup
 import telebot
+import requests
 import schedule
-import threading
 import time
-
-# === Настройки ===
-TOKEN = "8261592064:AAFLThqLcAnSBdlSWWon1596-X_zByVo9rY"
-CHAT_ID = -1002548699204
+import threading
 from flask import Flask
 import os
 
+# --- TELEGRAM TOKEN ---
+TOKEN = "8261592064:AAFLThqLcAnSBdlSWWon1596-X_zByVo9rY"
+bot = telebot.TeleBot(TOKEN)
+
+# --- FLASK SERVER ДЛЯ RENDER ---
 app = Flask(__name__)
 
 @app.route('/')
 def home():
     return "Bot is running"
 
-import threading
 def run_flask():
     port = int(os.environ.get("PORT", 10000))
     app.run(host="0.0.0.0", port=port)
-threading.Thread(target=run_flask).start()
-bot = telebot.TeleBot(TOKEN)
 
-# === Получение погоды ===
+# --- ФУНКЦИЯ ПОЛУЧЕНИЯ ПОГОДЫ ---
 def get_weather():
-    try:
-        response = requests.get("https://sinoptik.ua/погода-днепр", timeout=10)
-        soup = BeautifulSoup(response.text, "html.parser")
+    url = "https://sinoptik.ua/погода-днепр"
+    response = requests.get(url)
+    if response.status_code == 200:
+        text = response.text
+        try:
+            start = text.find('<div class="today-temp">') + len('<div class="today-temp">')
+            end = text.find('</div>', start)
+            temp = text[start:end].strip()
+            return f"Погода в Днепре сегодня: {temp}"
+        except:
+            return "Не удалось получить погоду 😔"
+    else:
+        return "Ошибка при получении данных с сайта."
 
-        city_tag = soup.select_one('.cityName span')
-        city = city_tag.text.strip() if city_tag else "Днепр"
-
-        date_tag = soup.select_one('.date')
-        date = date_tag.text.strip() if date_tag else ""
-
-        month_tag = soup.select_one('.month')
-        month = month_tag.text.strip() if month_tag else ""
-
-        temp_min_tag = soup.select_one('.temperature .min')
-        temp_min = temp_min_tag.text.strip() if temp_min_tag else "—"
-
-        temp_max_tag = soup.select_one('.temperature .max')
-        temp_max = temp_max_tag.text.strip() if temp_max_tag else "—"
-
-        desc_tag = soup.select_one('.wDescription .description')
-        description = desc_tag.text.strip() if desc_tag else ""
-
-        text = f"🌤 Погода в {city} на {date} {month}:\nМин: {temp_min}\nМакс: {temp_max}\n{description}"
-        return text
-    except Exception as e:
-        return f"Ошибка при получении погоды: {e}"
-
-# === Отправка погоды ===
+# --- ОТПРАВКА СООБЩЕНИЯ ---
 def send_weather():
-    try:
-        weather = get_weather()
-        bot.send_message(CHAT_ID, weather)
-    except Exception as e:
-        print("Ошибка при отправке сообщения:", e)
-
-# === Обработчик команды /test ===
-@bot.message_handler(commands=['test'])
-def handle_test(message):
+    chat_id = -1002548699204
     weather = get_weather()
-    bot.send_message(message.chat.id, f"✅ Проверка: бот работает!\n\n{weather}")
+    bot.send_message(chat_id, weather)
 
-# === Ежедневное расписание ===
+# --- КОМАНДА /start ---
+@bot.message_handler(commands=['start'])
+def start(message):
+    bot.reply_to(message, "Бот запущен и будет присылать погоду каждый день в 8:00 ☀️")
+
+# --- КОМАНДА /test ---
+@bot.message_handler(commands=['test'])
+def test(message):
+    bot.reply_to(message, get_weather())
+
+# --- РАСПИСАНИЕ ---
 def schedule_checker():
     schedule.every().day.at("08:00").do(send_weather)
     while True:
         schedule.run_pending()
-        time.sleep(60)
+        time.sleep(30)
 
-# === Отправляем сообщение при запуске ===
-try:
-    bot.send_message(CHAT_ID, "✅ Бот запущен и будет отправлять погоду каждый день в 08:00 (по серверному времени).")
-except Exception as e:
-    print("Не удалось отправить стартовое сообщение:", e)
-
-# === Запуск двух потоков: один слушает Telegram, второй выполняет расписание ===
-threading.Thread(target=schedule_checker).start()
-bot.polling(none_stop=True)
+# --- ЗАПУСК ПОТОКОВ ---
+if __name__ == "__main__":
+    threading.Thread(target=run_flask).start()
+    threading.Thread(target=schedule_checker).start()
+    print("Bot is running...")
+    bot.infinity_polling()
