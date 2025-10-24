@@ -1,68 +1,55 @@
-import telebot
+from flask import Flask
+import threading
 import requests
+from bs4 import BeautifulSoup
+import telebot
 import schedule
 import time
-import threading
-from flask import Flask
-import os
 
-# --- TELEGRAM TOKEN ---
+# === Настройки ===
 TOKEN = "8261592064:AAFLThqLcAnSBdlSWWon1596-X_zByVo9rY"
-bot = telebot.TeleBot(TOKEN)
+CHAT_ID = -1002548699204
 
-# --- FLASK SERVER ДЛЯ RENDER ---
+bot = telebot.TeleBot(TOKEN)
 app = Flask(__name__)
 
 @app.route('/')
 def home():
-    return "Bot is running"
+    return "Бот работает!"
 
-def run_flask():
-    port = int(os.environ.get("PORT", 10000))
-    app.run(host="0.0.0.0", port=port)
-
-# --- ФУНКЦИЯ ПОЛУЧЕНИЯ ПОГОДЫ ---
 def get_weather():
-    url = "https://sinoptik.ua/погода-днепр"
-    response = requests.get(url)
-    if response.status_code == 200:
-        text = response.text
-        try:
-            start = text.find('<div class="today-temp">') + len('<div class="today-temp">')
-            end = text.find('</div>', start)
-            temp = text[start:end].strip()
-            return f"Погода в Днепре сегодня: {temp}"
-        except:
-            return "Не удалось получить погоду 😔"
-    else:
-        return "Ошибка при получении данных с сайта."
+    try:
+        response = requests.get("https://sinoptik.ua/погода-днепр", timeout=10)
+        soup = BeautifulSoup(response.text, "html.parser")
+        city = soup.select_one('.cityName span').text.strip()
+        temp_min = soup.select_one('.temperature .min').text.strip()
+        temp_max = soup.select_one('.temperature .max').text.strip()
+        desc = soup.select_one('.wDescription .description').text.strip()
+        return f"🌤 Погода в {city}:\nМин: {temp_min}\nМакс: {temp_max}\n{desc}"
+    except Exception as e:
+        return f"Ошибка при получении погоды: {e}"
 
-# --- ОТПРАВКА СООБЩЕНИЯ ---
 def send_weather():
-    chat_id = -1002548699204
-    weather = get_weather()
-    bot.send_message(chat_id, weather)
+    try:
+        weather = get_weather()
+        bot.send_message(CHAT_ID, weather)
+    except Exception as e:
+        print("Ошибка при отправке:", e)
 
-# --- КОМАНДА /start ---
-@bot.message_handler(commands=['start'])
-def start(message):
-    bot.reply_to(message, "Бот запущен и будет присылать погоду каждый день в 8:00 ☀️")
-
-# --- КОМАНДА /test ---
 @bot.message_handler(commands=['test'])
 def test(message):
-    bot.reply_to(message, get_weather())
+    send_weather()
 
-# --- РАСПИСАНИЕ ---
-def schedule_checker():
+def scheduler():
     schedule.every().day.at("08:00").do(send_weather)
     while True:
         schedule.run_pending()
-        time.sleep(30)
+        time.sleep(60)
 
-# --- ЗАПУСК ПОТОКОВ ---
+def run_bot():
+    bot.polling(none_stop=True)
+
 if __name__ == "__main__":
-    threading.Thread(target=run_flask).start()
-    threading.Thread(target=schedule_checker).start()
-    print("Bot is running...")
-    bot.infinity_polling()
+    threading.Thread(target=scheduler).start()
+    threading.Thread(target=run_bot).start()
+    app.run(host="0.0.0.0", port=10000)
