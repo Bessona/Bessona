@@ -57,7 +57,9 @@ except Exception as e:
 
 # Планируем ежедневную задачу в 08:00
 schedule.every().day.at("08:00").do(send_weather)
-
+@bot.message_handler(commands=['test'])
+def handle_test(message):
+    send_weather()
 print("Запущен цикл расписания. Ожидание...")
 while True:
     schedule.run_pending()
