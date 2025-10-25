@@ -20,25 +20,23 @@ def home():
 def get_weather():
     try:
         url = "https://sinoptik.ua/погода-днепр"
-        headers = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
-        }
+        headers = {"User-Agent": "Mozilla/5.0"}
         response = requests.get(url, headers=headers, timeout=10)
         response.encoding = 'utf-8'
         soup = BeautifulSoup(response.text, "html.parser")
 
         # Город
-        city_tag = soup.select_one('.cityName span')
-        city = city_tag.text.strip() if city_tag else "Днепр"
+        city_tag = soup.select_one('.topCity__name') or soup.select_one('.cityName span')
+        city = city_tag.get_text(strip=True) if city_tag else "Днепр"
 
         # Температуры
-        temp_min_tag = soup.select_one('.temperature .min')
-        temp_max_tag = soup.select_one('.temperature .max')
+        temp_min_tag = soup.select_one('.temperature .min') or soup.select_one('.temperature__min')
+        temp_max_tag = soup.select_one('.temperature .max') or soup.select_one('.temperature__max')
         temp_min = temp_min_tag.get_text(strip=True) if temp_min_tag else "—"
         temp_max = temp_max_tag.get_text(strip=True) if temp_max_tag else "—"
 
-        # Описание
-        desc_tag = soup.select_one('.wDescription .description')
+        # Описание погоды
+        desc_tag = soup.select_one('.description') or soup.select_one('.wDescription')
         description = desc_tag.get_text(strip=True) if desc_tag else "Описание недоступно"
 
         return f"🌤 Погода в {city}:\nМин: {temp_min}\nМакс: {temp_max}\n{description}"
@@ -67,8 +65,6 @@ def run_bot():
     bot.polling(none_stop=True)
 
 if __name__ == "__main__":
-    # Запуск планировщика и бота в отдельных потоках
     threading.Thread(target=scheduler).start()
     threading.Thread(target=run_bot).start()
-    # Flask для проверки работы сервиса
     app.run(host="0.0.0.0", port=10000)
