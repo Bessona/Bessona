@@ -1,7 +1,6 @@
 from flask import Flask
 import threading
 import requests
-from bs4 import BeautifulSoup
 import telebot
 import schedule
 import time
@@ -19,35 +18,17 @@ def home():
 
 def get_weather():
     try:
-        url = "https://sinoptik.ua/погода-днепр"
-        headers = {"User-Agent": "Mozilla/5.0"}
-        response = requests.get(url, headers=headers, timeout=10)
+        url = "https://wttr.in/Dnipro?format=3"
+        response = requests.get(url, timeout=10)
         response.encoding = 'utf-8'
-        soup = BeautifulSoup(response.text, "html.parser")
-
-        # Город
-        city_tag = soup.select_one('.topCity__name') or soup.select_one('.cityName span')
-        city = city_tag.get_text(strip=True) if city_tag else "Днепр"
-
-        # Температуры
-        temp_min_tag = soup.select_one('.temperature .min') or soup.select_one('.temperature__min')
-        temp_max_tag = soup.select_one('.temperature .max') or soup.select_one('.temperature__max')
-        temp_min = temp_min_tag.get_text(strip=True) if temp_min_tag else "—"
-        temp_max = temp_max_tag.get_text(strip=True) if temp_max_tag else "—"
-
-        # Описание погоды
-        desc_tag = soup.select_one('.description') or soup.select_one('.wDescription')
-        description = desc_tag.get_text(strip=True) if desc_tag else "Описание недоступно"
-
-        return f"🌤 Погода в {city}:\nМин: {temp_min}\nМакс: {temp_max}\n{description}"
-
+        return response.text  # Например: "Dnipro: 🌦 +12°C"
     except Exception as e:
         return f"Ошибка при получении погоды: {e}"
 
 def send_weather():
     try:
         weather = get_weather()
-        bot.send_message(CHAT_ID, weather)
+        bot.send_message(CHAT_ID, f"🌤 Погода в Днепре:\n{weather}")
     except Exception as e:
         print("Ошибка при отправке:", e)
 
